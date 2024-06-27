@@ -40,10 +40,19 @@ def parse_xml(content):
         df['lon'] = df['lon'].astype(float)
     return df
 
+def color_map(break_type):
+    color_dict = {
+        'AC': [255, 0, 0],  # Red
+        'ACG': [0, 255, 0], # Green
+        # Add other break types and colors as needed
+    }
+    return color_dict.get(break_type, [0, 0, 255])  # Default to Blue
+
 data_content = fetch_data(LOCAL_XML_PATH)
 
 if data_content:
     df = parse_xml(data_content)
+    df['color'] = df['break_type'].apply(color_map)
 
     # Streamlit App
     st.title('Calgary Water Main Breaks Visualization')
@@ -65,6 +74,12 @@ if data_content:
         if status_filter:
             df = df[df['status'].isin(status_filter)]
 
+    # Satellite overlay toggle
+    st.sidebar.header('Map Style')
+    satellite_overlay = st.sidebar.checkbox('Enable Satellite Overlay', False)
+
+    map_style = 'mapbox://styles/mapbox/satellite-v9' if satellite_overlay else 'mapbox://styles/mapbox/streets-v11'
+
     # Display filtered data
     st.write('Filtered Data', df)
 
@@ -76,7 +91,7 @@ if data_content:
             data=df,
             get_position='[lon, lat]',
             get_radius=100,
-            get_fill_color='[180, 0, 200, 140]',
+            get_fill_color='color',
             pickable=True,
             tooltip=True,
         )
@@ -93,8 +108,21 @@ if data_content:
             zoom=10,
             pitch=50,
         )
-        r = pdk.Deck(layers=[layer], initial_view_state=view_state, tooltip=tooltip)
+        r = pdk.Deck(
+            layers=[layer],
+            initial_view_state=view_state,
+            tooltip=tooltip,
+            map_style=map_style,
+        )
         st.pydeck_chart(r)
+        
+        # Add a legend
+        st.sidebar.markdown("### Legend")
+        st.sidebar.markdown("""
+            <div style="background-color: #ff0000; width: 20px; height: 20px; display: inline-block;"></div> AC<br>
+            <div style="background-color: #00ff00; width: 20px; height: 20px; display: inline-block;"></div> ACG<br>
+            <div style="background-color: #0000ff; width: 20px; height: 20px; display: inline-block;"></div> Others
+        """, unsafe_allow_html=True)
     else:
         st.write("No geographic data available for visualization.")
 
